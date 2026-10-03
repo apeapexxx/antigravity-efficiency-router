@@ -10,23 +10,26 @@ the user unless asked.
 - **T2 Standard** - well-specified feature, bug with clear repro, refactor covered by tests.
 - **T3 Hard** - architecture, ambiguous design, subtle/concurrency/security bugs, high blast radius.
 
-## 2. Routing matrix
-Each turn a `[router] main=<bucket>/<tier> | 5h x% . 7d y% | LEVEL | task~Tn [| ESCALATE?|DOWNSHIFT-OK]`
-line is injected. `task~Tn` is a zero-cost keyword heuristic; your own triage wins.
-If absent, assume `premium` / `GREEN`.
+## 2. Auto routing (zero clicks)
+The main model is the **ceiling**: the strongest model available this conversation. Subagents can only be
+`flash_lite` / `flash` / `pro` (Gemini) or `inherit` (= main model). So route **downward** automatically
+and never ask the user to switch models, except the single RED notice below.
 
-| main tier | GREEN | YELLOW | RED |
-|---|---|---|---|
-| premium (Claude) | T1 -> `flash`; T2-T3 self | T1 -> `flash`, T2 -> `pro`; self = plan + review; terse | Delegate all execution; self = final check only. Tell the user ONCE to switch the main model to Gemini. |
-| strong (Gemini Pro) | T1 -> `flash`; T2-T3 self | same, terse | same; suggest Flash for T0-T1 |
-| cheap (Flash) | T0-T2 self; T3: get a `pro` subagent analysis before committing | same | same |
+Each turn a `[router] main=<bucket>/<tier> | 5h x% . 7d y% | LEVEL | task~Tn [| AUTO-PRO|LIGHT]` line is
+injected. `task~Tn` is a zero-cost keyword heuristic; your own triage wins. If absent, assume `premium`/`GREEN`.
 
-Subagent `Model`: `flash_lite` = pure lookup/extraction - `flash` = research, reading, boilerplate - `pro` = implementation/analysis needing judgment - `inherit` = only when the main model is truly required.
+| main tier | T0 | T1 | T2 | T3 |
+|---|---|---|---|---|
+| premium (Claude / any top model) | answer briefly, no tools | `flash` | self if judgment-heavy, else `pro` | **self** |
+| strong (Gemini Pro) | answer briefly | `flash` | self | self |
+| cheap (Flash) | self | self | self | `pro` subagent does the analysis/implementation; you integrate |
 
-### Fully Autonomous Mode (Zero-touch)
-- **T3 on cheap main (Flash)**: **DO NOT interrupt the user or ask them to switch models.** Immediately spawn a `pro` subagent via `invoke_subagent` (`Model: "pro"`, `TypeName: "research"` for architecture/analysis or `TypeName: "self"` for implementation). Let `pro` solve the hard problem, receive its synthesis, and present the final answer seamlessly.
-- **Claude as main**: If the user chose Claude manually, Claude handles T2-T3 directly and delegates T1 to `flash` subagents.
-- Never prompt the user to manually flip dropdowns unless they explicitly ask for Claude.
+Budget level adjusts premium usage: **YELLOW** - T2 always `pro`; on T3 do the core reasoning yourself but delegate
+all reading/implementation. **RED** - delegate everything to `pro`/`flash`, self = final check only; tell the user
+ONCE that the premium quota is nearly exhausted.
+`AUTO-PRO` = cheap main + hard task -> spawn `pro` now. `LIGHT` = premium main + easy task -> answer briefly or delegate; do not suggest switching.
+
+Subagent `Model`: `flash_lite` = pure lookup/extraction - `flash` = research, reading, boilerplate - `pro` = implementation/analysis needing judgment - `inherit` = never for routine work (it burns premium quota).
 
 ## 3. Delegation rules
 - `invoke_subagent` with TypeName `research` (read-only) or `self` (edits), plus the `Model` above. Launch independent subagents in parallel in one call.

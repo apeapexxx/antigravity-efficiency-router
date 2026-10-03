@@ -56,9 +56,10 @@ Options considered: <A/B>.
 Return: recommended option, top 3 risks, what to verify. <=200 words.
 ```
 
-## Main-model advice for the user
-The agent cannot switch its own main model; only the user can (model dropdown).
-Recommend a switch only when it clearly pays off:
-- RED on Claude -> switch to Gemini Pro (or Flash for routine work).
-- Long session of T0/T1 work on Claude -> suggest Flash.
-- Hard T3 problem while on Flash -> suggest Claude / Gemini Pro for that conversation.
+## Choosing the ceiling model (one-time, not per question)
+The agent cannot switch its own main model, and Claude cannot be a subagent. So the user picks the
+**ceiling** once and routing below it is automatic:
+- **Auto (best quality)**: main = Claude (or the newest top model). Claude does T3 itself; T0 brief; T1 -> Flash; T2 -> Pro/self.
+- **Economy**: main = Gemini Flash. Ceiling is Gemini Pro (T3 -> `pro` subagent). Claude is never used.
+Only mention model switching when the premium bucket hits RED (once per conversation).
+New top model released: add it as a `premium` bucket in `router_config.json` (or `alias`), then select it as main.
