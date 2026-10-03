@@ -44,12 +44,12 @@ Clone this repository into your global Antigravity plugins directory:
 
 ### macOS / Linux
 ```bash
-git clone https://github.com/your-username/antigravity-efficiency-router.git ~/.gemini/config/plugins/efficiency-router
+git clone https://github.com/apeapexxx/antigravity-efficiency-router.git ~/.gemini/config/plugins/efficiency-router
 ```
 
 ### Windows (PowerShell)
 ```powershell
-git clone https://github.com/your-username/antigravity-efficiency-router.git "$HOME\.gemini\config\plugins\efficiency-router"
+git clone https://github.com/apeapexxx/antigravity-efficiency-router.git "$HOME\.gemini\config\plugins\efficiency-router"
 ```
 
 Restart Antigravity or open a new conversation. The plugin is **enabled automatically**.

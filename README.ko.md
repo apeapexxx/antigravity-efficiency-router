@@ -44,12 +44,12 @@
 
 ### macOS / Linux
 ```bash
-git clone https://github.com/사용자명/antigravity-efficiency-router.git ~/.gemini/config/plugins/efficiency-router
+git clone https://github.com/apeapexxx/antigravity-efficiency-router.git ~/.gemini/config/plugins/efficiency-router
 ```
 
 ### Windows (PowerShell)
 ```powershell
-git clone https://github.com/사용자명/antigravity-efficiency-router.git "$HOME\.gemini\config\plugins\efficiency-router"
+git clone https://github.com/apeapexxx/antigravity-efficiency-router.git "$HOME\.gemini\config\plugins\efficiency-router"
 ```
 
 안티그래비티를 재시작하거나 새 대화를 열면 **플러그인이 자동으로 활성화**됩니다.
