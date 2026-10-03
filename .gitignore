@@ -1,0 +1,14 @@
+# Runtime data & ledger (contains private session IDs and conversation history)
+data/
+*.jsonl
+*.tmp
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini

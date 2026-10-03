@@ -1,0 +1,50 @@
+{
+  "enabled": true,
+  "bytes_per_token": 4,
+  "base_overhead_tokens": 12000,
+  "max_context_tokens": 1000000,
+  "thresholds": {
+    "yellow": 0.6,
+    "red": 0.85
+  },
+  "aliases": {
+    "MODEL_PLACEHOLDER_M319": "claude"
+  },
+  "buckets": {
+    "claude": {
+      "tier": "premium",
+      "patterns": [
+        "claude",
+        "opus",
+        "sonnet",
+        "anthropic"
+      ],
+      "budget_5h": 4000000,
+      "budget_7d": 40000000
+    },
+    "gemini_pro": {
+      "tier": "strong",
+      "patterns": [
+        "gemini.*pro",
+        "\\bpro\\b"
+      ],
+      "budget_5h": 15000000,
+      "budget_7d": 150000000
+    },
+    "gemini_flash": {
+      "tier": "cheap",
+      "patterns": [
+        "flash",
+        "lite"
+      ],
+      "budget_5h": 50000000,
+      "budget_7d": 500000000
+    },
+    "unknown": {
+      "tier": "premium",
+      "patterns": [],
+      "budget_5h": 4000000,
+      "budget_7d": 40000000
+    }
+  }
+}
