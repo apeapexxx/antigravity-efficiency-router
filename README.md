@@ -33,7 +33,7 @@ Without intelligent routing:
    - **T3 (Hard)**: Architecture, concurrency, subtle bugs, security.
 2. **Quota-Aware Lifecycle Hook**: Intercepts model calls before invocation (`PreInvocation`), records rolling 5h / 7d usage in a local ledger, and injects real-time budget status (`GREEN` / `YELLOW` / `RED`).
 3. **Smart Delegation**: Automatically delegates T1 tasks to ultra-cheap `gemini_flash` subagents and T2 tasks to `gemini_pro`, shielding your Claude budget.
-4. **Context-Preserving Escalation Protocol**: When you work with Gemini Flash as your default and hit a truly difficult task (T3), the router prepares a 5-bullet handoff brief and recommends switching to Claude. You switch the dropdown, type `"continue"`, and Claude immediately tackles the problem without losing any context.
+4. **Zero-Touch Autonomous Escalation**: When you work with Gemini Flash as your default and hit a truly difficult task (T3), the router **automatically spawns a Gemini Pro subagent** in the background. It solves the architecture or complex bug and presents the final answer with zero user intervention—no manual dropdown clicks required.
 5. **Generative UI Dashboard**: View your real-time usage and savings directly inside the chat interface by simply typing `"show usage"` or `"사용량 보여줘"`.
 
 ---

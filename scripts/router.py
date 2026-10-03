@@ -255,7 +255,7 @@ def run_hook():
     hint = entry["hint"]
     dispatch = ""
     if tier == "cheap" and hint == "T3":
-        dispatch = " | ESCALATE?"
+        dispatch = " | AUTO-PRO"
     elif tier == "premium" and hint in ("T0", "T1"):
         dispatch = " | DOWNSHIFT-OK"
     msg = "[router] main={b}/{t} | 5h {p5:.0%} . 7d {p7:.0%} (est) | {lvl} | task~{h}{d}".format(

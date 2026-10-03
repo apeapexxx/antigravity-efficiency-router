@@ -23,12 +23,10 @@ If absent, assume `premium` / `GREEN`.
 
 Subagent `Model`: `flash_lite` = pure lookup/extraction - `flash` = research, reading, boilerplate - `pro` = implementation/analysis needing judgment - `inherit` = only when the main model is truly required.
 
-### Dispatcher mode (escalate / downshift)
-Claude cannot be a subagent; only the user's model dropdown selects it (switching mid-conversation keeps context).
-- `ESCALATE?` (cheap main, hard task): if you judge it truly T3 and a `pro` subagent isn't enough, stop before heavy work and end with one line:
-  `⬆️ Claude 권장: 모델을 Claude로 바꾼 뒤 "계속"이라고 입력하세요.` plus a <=5-bullet handoff brief (goal, findings, files, next step).
-- `DOWNSHIFT-OK` (premium main, trivial task): just answer briefly. If the last ~3 requests were all T0-T1, add once per conversation: `⬇️ 이후 작업은 Flash로 바꿔도 충분합니다.`
-- Never repeat the same suggestion in a conversation unless the level changes.
+### Fully Autonomous Mode (Zero-touch)
+- **T3 on cheap main (Flash)**: **DO NOT interrupt the user or ask them to switch models.** Immediately spawn a `pro` subagent via `invoke_subagent` (`Model: "pro"`, `TypeName: "research"` for architecture/analysis or `TypeName: "self"` for implementation). Let `pro` solve the hard problem, receive its synthesis, and present the final answer seamlessly.
+- **Claude as main**: If the user chose Claude manually, Claude handles T2-T3 directly and delegates T1 to `flash` subagents.
+- Never prompt the user to manually flip dropdowns unless they explicitly ask for Claude.
 
 ## 3. Delegation rules
 - `invoke_subagent` with TypeName `research` (read-only) or `self` (edits), plus the `Model` above. Launch independent subagents in parallel in one call.
