@@ -3,7 +3,7 @@
   "bytes_per_token": 4,
   "base_overhead_tokens": 8000,
   "marginal_overhead_tokens": 1000,
-  "cache_weight": 0.10,
+  "cache_weight": 0.1,
   "max_context_tokens": 1000000,
   "thresholds": {
     "yellow": 0.6,
@@ -21,8 +21,9 @@
         "sonnet",
         "anthropic"
       ],
-      "budget_5h": 4000000,
-      "budget_7d": 40000000
+      "budget_5h": 1245758,
+      "budget_7d": 12457580,
+      "calibrated_5h": "2026-10-04 03:07"
     },
     "gemini_pro": {
       "tier": "strong",

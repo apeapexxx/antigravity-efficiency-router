@@ -459,10 +459,10 @@ const lv = LV[D.level]; const b = document.getElementById("lvl");
 b.textContent = D.level+" · "+lv[1]; b.style.background = lv[0]+"26"; b.style.color = lv[0];
 const bar = (p,c) => `<div class="h-1.5 rounded bg-[var(--border)] overflow-hidden"><div class="h-full rounded" style="width:${Math.min(100,p*100)}%;background:${c}"></div></div>`;
 document.getElementById("buckets").innerHTML = D.buckets.map(x => `
-  <div class="grid grid-cols-[110px_1fr_1fr] gap-3 items-center text-xs">
+  <div class="grid grid-cols-[100px_1fr_1fr] gap-3 items-center text-xs">
     <div><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:${x.color}"></span>${x.name}</div>
-    <div><div class="flex justify-between text-[var(--muted-foreground)]"><span>5h ${fmt(x.t5)}/${fmt(x.b5)}</span><span>${pct(x.p5)}</span></div>${bar(x.p5,x.color)}</div>
-    <div><div class="flex justify-between text-[var(--muted-foreground)]"><span>7d ${fmt(x.t7)}/${fmt(x.b7)}</span><span>${pct(x.p7)}</span></div>${bar(x.p7,x.color)}</div>
+    <div><div class="flex justify-between text-[var(--muted-foreground)] mb-0.5"><span>5h ${fmt(x.t5)}/${fmt(x.b5)}</span><span>${pct(x.p5)} 소진 (잔여 ${pct(Math.max(0, 1 - x.p5))})</span></div>${bar(x.p5,x.color)}</div>
+    <div><div class="flex justify-between text-[var(--muted-foreground)] mb-0.5"><span>7d ${fmt(x.t7)}/${fmt(x.b7)}</span><span>${pct(x.p7)} 소진</span></div>${bar(x.p7,x.color)}</div>
   </div>`).join("");
 const mx = Math.max(1, ...D.hourly.map(h => D.order.reduce((s,k)=>s+(h[k]||0),0)));
 document.getElementById("chart").innerHTML = D.hourly.map(h => {
@@ -541,14 +541,27 @@ def cmd_dashboard(args):
 
 
 def cmd_calibrate(args):
-    """Call right after you hit a real limit: sets budget = current usage."""
+    """Call right after you hit a real limit or check UI quota: sets budget based on real %."""
     cfg = load_config()
     if not args:
-        sys.exit("usage: calibrate <bucket> [5h|7d]")
+        sys.exit("usage: calibrate <bucket> [5h|7d] [actual_pct] [--remaining|-r]")
     bucket = args[0]
-    window = args[1] if len(args) > 1 else "5h"
-    # Optional: the real usage % the provider/UI shows right now (default 100 = limit just hit).
-    actual_pct = float(args[2]) if len(args) > 2 else 100.0
+
+    # Parse flags like --remaining or -r
+    is_remaining = False
+    clean_args = []
+    for a in args[1:]:
+        if a in ("--rem", "--remaining", "-r"):
+            is_remaining = True
+        else:
+            clean_args.append(a)
+
+    window = clean_args[0] if clean_args else "5h"
+    actual_pct = float(clean_args[1]) if len(clean_args) > 1 else 100.0
+
+    if is_remaining:
+        actual_pct = 100.0 - actual_pct
+
     if not 0 < actual_pct <= 100:
         sys.exit("actual percent must be in (0, 100]")
     if bucket not in cfg["buckets"]:
@@ -566,8 +579,9 @@ def cmd_calibrate(args):
         cfg["buckets"][bucket]["budget_7d"] = new_budget * 10
     cfg["buckets"][bucket]["calibrated_" + window] = time.strftime("%Y-%m-%d %H:%M")
     save_json(CONFIG_PATH, cfg)
-    print("{} {}: {} -> {} (logged {} = {:.0f}% real)".format(
-        bucket, key, fmt_tok(old or 0), fmt_tok(new_budget), fmt_tok(used), actual_pct))
+    print("{} {}: {} -> {} (logged {} = {:.0f}% used{})".format(
+        bucket, key, fmt_tok(old or 0), fmt_tok(new_budget), fmt_tok(used), actual_pct,
+        " [from {:.0f}% remaining]".format(100.0 - actual_pct) if is_remaining else ""))
 
 
 def cmd_set(args):
