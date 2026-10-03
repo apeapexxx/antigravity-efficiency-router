@@ -57,6 +57,13 @@ git clone https://github.com/apeapexxx/antigravity-efficiency-router.git "$HOME\
 
 안티그래비티를 재시작하거나 새 대화를 열면 **플러그인이 자동으로 활성화**됩니다.
 
+**그다음 모델 드롭다운에서 상한 모델을 한 번만 고르세요.** 질문마다 바꿀 필요는 없습니다.
+
+| 메인 모델 | 모드 | 고난도(T3) 질문 담당 |
+|---|---|---|
+| Claude Opus (또는 최신 최상위 모델) | **자동** | Claude가 직접 처리하고, 쉬운 작업은 Pro / Flash로 자동 배치 |
+| Gemini Flash | **절약** | Gemini Pro 서브에이전트가 처리하고, Claude 쿼터는 쓰지 않음 |
+
 ---
 
 ## 🖥️ 사용 방법
@@ -99,7 +106,7 @@ python scripts/router.py reset
 {
   "buckets": {
     "gemini_argon": {
-      "tier": "strong",
+      "tier": "premium",
       "patterns": ["argon", "gemini-4"],
       "budget_5h": 20000000,
       "budget_7d": 200000000

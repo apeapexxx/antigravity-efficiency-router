@@ -57,6 +57,13 @@ git clone https://github.com/apeapexxx/antigravity-efficiency-router.git "$HOME\
 
 Restart Antigravity or open a new conversation. The plugin is **enabled automatically**.
 
+**Then pick your ceiling model once** (model dropdown) — no per-question switching:
+
+| Main model | Mode | Who answers hard (T3) questions |
+|---|---|---|
+| Claude Opus (or newest top model) | **Auto** | Claude itself; easier work is routed down to Pro / Flash |
+| Gemini Flash | **Economy** | A Gemini Pro subagent; Claude quota is never used |
+
 ---
 
 ## 🖥️ In-Chat Usage
@@ -109,7 +116,7 @@ When new frontier models (e.g., **Gemini 4.0 Argon**, Claude 5, etc.) are releas
 {
   "buckets": {
     "gemini_argon": {
-      "tier": "strong",
+      "tier": "premium",
       "patterns": ["argon", "gemini-4"],
       "budget_5h": 20000000,
       "budget_7d": 200000000
