@@ -14,6 +14,7 @@ with `calibrate` the moment you actually hit a limit.
 Python 3.9 compatible, stdlib only. The hook must never crash the agent loop:
 any failure prints `{}` and exits 0.
 """
+import contextlib
 import json
 import os
 import re
@@ -31,6 +32,44 @@ H5 = 5 * 3600
 D7 = 7 * 86400
 
 
+LOCK_PATH = os.path.join(DATA_DIR, ".router.lock")
+
+
+@contextlib.contextmanager
+def file_lock(path=LOCK_PATH):
+    """Cross-platform advisory file lock preventing concurrent write races."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    f = open(path, "a+")
+    try:
+        try:
+            import msvcrt
+            msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+        except (ImportError, OSError):
+            try:
+                import fcntl
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            except (ImportError, OSError):
+                pass
+        yield
+    finally:
+        try:
+            try:
+                import msvcrt
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+            except (ImportError, OSError):
+                try:
+                    import fcntl
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                except (ImportError, OSError):
+                    pass
+        except Exception:
+            pass
+        try:
+            f.close()
+        except Exception:
+            pass
+
+
 # --------------------------------------------------------------------------- io
 def load_json(path, default):
     try:
@@ -42,10 +81,11 @@ def load_json(path, default):
 
 def save_json(path, obj):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    with file_lock():
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
 
 
 def load_config():
@@ -73,18 +113,20 @@ def read_ledger(now):
 
 def append_ledger(entry):
     os.makedirs(DATA_DIR, exist_ok=True)
-    with open(LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    with file_lock():
+        with open(LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def compact_ledger(entries):
     """Rewrite the ledger keeping only the last 7 days."""
     os.makedirs(DATA_DIR, exist_ok=True)
-    tmp = LOG_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        for e in entries:
-            f.write(json.dumps(e, ensure_ascii=False) + "\n")
-    os.replace(tmp, LOG_PATH)
+    with file_lock():
+        tmp = LOG_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            for e in entries:
+                f.write(json.dumps(e, ensure_ascii=False) + "\n")
+        os.replace(tmp, LOG_PATH)
 
 
 # ---------------------------------------------------------------------- logic
@@ -101,29 +143,80 @@ def classify(model, cfg):
     return "unknown"
 
 
-def estimate_tokens(payload, cfg):
-    """Approximate input tokens of this invocation from transcript size."""
-    base = int(cfg.get("base_overhead_tokens", 12000))
+def estimate_tokens(payload, cfg, state):
+    """Estimate effective tokens accounting for prompt caching and incremental deltas.
+
+    Instead of billing the entire transcript size every invocation (which causes
+    linear/quadratic explosion in multi-turn chats), we bill:
+      - First turn: base_overhead + total_tokens
+      - Subsequent turns: marginal_overhead + delta_tokens + int(cached_tokens * cache_weight)
+    """
+    bpt = float(cfg.get("bytes_per_token", 4))
+    base = int(cfg.get("base_overhead_tokens", 8000))
+    marginal = int(cfg.get("marginal_overhead_tokens", 1000))
+    cache_weight = float(cfg.get("cache_weight", 0.10))
+    max_tokens = int(cfg.get("max_context_tokens", 1000000))
+
     tp = payload.get("transcriptPath") or ""
     candidates = []
     if tp:
         candidates.append(os.path.join(os.path.dirname(tp), "transcript_full.jsonl"))
         candidates.append(tp)
+    curr_size = 0
     for c in candidates:
         try:
-            size = os.path.getsize(c)
+            curr_size = os.path.getsize(c)
+            break
         except OSError:
             continue
-        est = base + int(size / float(cfg.get("bytes_per_token", 4)))
-        return min(est, int(cfg.get("max_context_tokens", 1000000)))
-    return base
+
+    if curr_size <= 0:
+        return base
+
+    conv_id = payload.get("conversationId") or "default"
+    conv_map = state.setdefault("conversations", {})
+    conv_info = conv_map.get(conv_id, {})
+    last_size = conv_info.get("last_size", 0)
+    turns = conv_info.get("turns", 0)
+
+    if turns == 0 or last_size <= 0:
+        # First invocation in this conversation: base overhead + full size
+        tokens = base + int(curr_size / bpt)
+    else:
+        # Subsequent invocation: new delta bytes + cached tokens discount
+        delta_bytes = max(0, curr_size - last_size)
+        delta_tokens = int(delta_bytes / bpt)
+        cached_tokens = int(last_size / bpt)
+        effective_cached = int(cached_tokens * cache_weight)
+        tokens = marginal + delta_tokens + effective_cached
+
+    # Update conversation offset tracking
+    conv_map[conv_id] = {
+        "last_size": curr_size,
+        "turns": turns + 1,
+        "updated": time.time(),
+    }
+    # Keep state tidy (prune conversations older than 7 days)
+    if len(conv_map) > 200:
+        now_ts = time.time()
+        for k in list(conv_map.keys()):
+            if now_ts - conv_map[k].get("updated", 0) > D7:
+                del conv_map[k]
+
+    return min(max(tokens, marginal), max_tokens)
 
 
-def last_user_request(payload, tail_bytes=262144):
-    """Return the most recent USER_REQUEST text, reading only the transcript tail."""
+_CONTINUATION = re.compile(
+    r"^(?:응|어|네|예|ㅇㅇ|ㅇ|그래|그렇게|계속|진행|해봐|해줘|다음|코드|짜줘|풀어줘|수정|1번|2번|3번|"
+    r"ok|okay|yes|yep|continue|proceed|go ahead|do it|fix it|run it|sure)",
+    re.I)
+
+
+def get_recent_requests(payload, tail_bytes=262144):
+    """Return (current_request, previous_request) from transcript tail."""
     tp = payload.get("transcriptPath") or ""
     if not tp:
-        return ""
+        return "", ""
     try:
         with open(tp, "rb") as f:
             f.seek(0, os.SEEK_END)
@@ -131,7 +224,8 @@ def last_user_request(payload, tail_bytes=262144):
             f.seek(max(0, size - tail_bytes))
             chunk = f.read().decode("utf-8", "replace")
     except OSError:
-        return ""
+        return "", ""
+    user_inputs = []
     for line in reversed(chunk.splitlines()):
         if '"USER_INPUT"' not in line:
             continue
@@ -143,8 +237,14 @@ def last_user_request(payload, tail_bytes=262144):
             continue
         text = step.get("content") or ""
         m = re.search(r"<USER_REQUEST>(.*?)</USER_REQUEST>", text, re.S)
-        return (m.group(1) if m else text).strip()
-    return ""
+        req = (m.group(1) if m else text).strip()
+        if req:
+            user_inputs.append(req)
+        if len(user_inputs) >= 2:
+            break
+    curr = user_inputs[0] if user_inputs else ""
+    prev = user_inputs[1] if len(user_inputs) > 1 else ""
+    return curr, prev
 
 
 _T3 = re.compile(
@@ -163,10 +263,9 @@ _T1 = re.compile(
     re.I)
 
 
-def classify_task(text):
-    """Heuristic complexity tier T0..T3 (zero tokens). The main model may override."""
+def raw_classify(text):
     if not text:
-        return "T?"
+        return 0
     n = len(text)
     if _T3.search(text):
         s = 3
@@ -178,7 +277,22 @@ def classify_task(text):
         s = 0 if n < 40 else 1
     if s in (1, 2) and (n > 1500 or text.count("```") >= 2):
         s += 1
-    return "T%d" % s
+    return s
+
+
+def classify_task(curr_text, prev_text="", prev_tier=""):
+    """Heuristic complexity tier with multi-turn context inheritance."""
+    if not curr_text:
+        return "T?"
+    score = raw_classify(curr_text)
+    # Context inheritance: Only inherit when the user prompt is a continuation of prior deep work
+    if score <= 1 and len(curr_text) < 40 and _CONTINUATION.search(curr_text.strip()):
+        prev_score = raw_classify(prev_text) if prev_text else 0
+        if prev_score >= 2:
+            return "T%d(ctx)" % prev_score
+        if prev_tier and prev_tier.startswith(("T2", "T3")):
+            return prev_tier + "(ctx)"
+    return "T%d" % score
 
 
 def window_usage(entries, bucket, now):
@@ -224,10 +338,15 @@ def run_hook():
     bucket = classify(model, cfg)
     bcfg = cfg["buckets"].get(bucket, cfg["buckets"].get("unknown", {}))
     tier = bcfg.get("tier", "premium")
-    tok = estimate_tokens(payload, cfg)
+
+    state = load_json(STATE_PATH, {})
+    tok = estimate_tokens(payload, cfg, state)
 
     # Debug aid: keep the latest payload shape (small fields only).
     save_json(LAST_PAYLOAD_PATH, {k: v for k, v in payload.items() if not isinstance(v, (dict, list)) or k == "workspacePaths"})
+
+    curr_req, prev_req = get_recent_requests(payload)
+    hint = classify_task(curr_req, prev_req)
 
     entry = {
         "ts": round(now, 1),
@@ -235,12 +354,11 @@ def run_hook():
         "model": model,
         "bucket": bucket,
         "tok": tok,
-        "hint": classify_task(last_user_request(payload)),
+        "hint": hint,
     }
     append_ledger(entry)
 
     entries = read_ledger(now)
-    state = load_json(STATE_PATH, {})
     # Occasional compaction keeps the ledger small (~once per 500 calls).
     if state.get("since_compact", 0) >= 500:
         compact_ledger(entries)
@@ -252,11 +370,10 @@ def run_hook():
     u = window_usage(entries, bucket, now)
     lvl, p5, p7 = level_for(u, bcfg, cfg)
 
-    hint = entry["hint"]
     dispatch = ""
-    if tier == "cheap" and hint == "T3":
+    if tier == "cheap" and hint.startswith("T3"):
         dispatch = " | AUTO-PRO"
-    elif tier == "premium" and hint in ("T0", "T1"):
+    elif tier == "premium" and hint.startswith(("T0", "T1")):
         dispatch = " | LIGHT"
     msg = "[router] main={b}/{t} | 5h {p5:.0%} . 7d {p7:.0%} (est) | {lvl} | task~{h}{d}".format(
         b=bucket, t=tier, p5=p5, p7=p7, lvl=lvl, h=hint, d=dispatch

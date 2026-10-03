@@ -26,18 +26,18 @@ Without intelligent routing:
 
 **Antigravity Efficiency Router** is a zero-dependency, plug-and-play global plugin for Google Antigravity that:
 
-1. **Zero-Token Task Classification**: Evaluates every user prompt with a keyword/length heuristic (no model call, 0 tokens) into 4 tiers. It is only a hint; the main model's own judgment overrides it:
+1. **Zero-Token Task Classification with Context Memory**: Evaluates every user prompt with a keyword/length heuristic (no model call, 0 tokens) into 4 tiers. Short continuation replies (e.g. *"proceed"*, *"go ahead"*, *"fix it"*) automatically inherit the previous turn's depth (`T3(ctx)` / `T2(ctx)`). It is only a hint; the main model's own judgment always overrides it:
    - **T0 (Trivial)**: Chit-chat, quick questions.
    - **T1 (Mechanical)**: File search, log review, formatting, research.
    - **T2 (Standard)**: Feature implementation, regular bug fixes.
    - **T3 (Hard)**: Architecture, concurrency, subtle bugs, security.
-2. **Quota-Aware Lifecycle Hook**: Intercepts model calls before invocation (`PreInvocation`), records rolling 5h / 7d usage in a local ledger, and injects real-time budget status (`GREEN` / `YELLOW` / `RED`).
+2. **Cache-Aware Incremental Token Accounting**: Intercepts model calls (`PreInvocation`) and calculates only **new incremental tokens + prompt cache discount (10% weight)** instead of re-billing the entire conversation history every turn. Cross-platform advisory file locking (`msvcrt` / `fcntl`) ensures thread/process safety across concurrent subagents.
 3. **Smart Delegation**: Mechanical work (T1) goes to cheap `flash` subagents; standard work (T2) goes to `pro` when it doesn't need the main model's judgment (always when the premium budget is tight), shielding your Claude budget.
 4. **Zero-Click Auto Routing (ceiling model)**: You pick the strongest model once as the main model; everything below it is routed automatically, per question:
    - **Auto mode** (main = Claude Opus or any newer top model): T3 is solved by Claude itself, T2 by Gemini Pro or Claude, T1 by Flash, T0 answered briefly.
    - **Economy mode** (main = Gemini Flash): T3 is handed to a Gemini Pro subagent automatically; Claude quota is never touched.
    - Why a ceiling? Antigravity subagents can only run Gemini tiers (`flash_lite`/`flash`/`pro`) or inherit the main model, so Claude can only be reached as the main model.
-5. **Generative UI Dashboard**: View your real-time usage and savings directly inside the chat interface by simply typing `"show usage"` or `"사용량 보여줘"`.
+5. **Generative UI Dashboard & Accurate Calibration**: View your real-time usage and savings directly inside the chat interface (`"show usage"` or `"사용량 보여줘"`). Calibrate thresholds at any time using your actual provider percentage: `python scripts/router.py calibrate claude 5h <actual_percent>`.
 
 ---
 

@@ -1,7 +1,9 @@
 {
   "enabled": true,
   "bytes_per_token": 4,
-  "base_overhead_tokens": 12000,
+  "base_overhead_tokens": 8000,
+  "marginal_overhead_tokens": 1000,
+  "cache_weight": 0.10,
   "max_context_tokens": 1000000,
   "thresholds": {
     "yellow": 0.6,
