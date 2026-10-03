@@ -430,21 +430,27 @@ def cmd_calibrate(args):
         sys.exit("usage: calibrate <bucket> [5h|7d]")
     bucket = args[0]
     window = args[1] if len(args) > 1 else "5h"
+    # Optional: the real usage % the provider/UI shows right now (default 100 = limit just hit).
+    actual_pct = float(args[2]) if len(args) > 2 else 100.0
+    if not 0 < actual_pct <= 100:
+        sys.exit("actual percent must be in (0, 100]")
     if bucket not in cfg["buckets"]:
         sys.exit("unknown bucket: " + bucket)
     u = window_usage(read_ledger(time.time()), bucket, time.time())
     used = u["t5"] if window == "5h" else u["t7"]
     if used <= 0:
         sys.exit("no usage logged for {} in {} window; nothing to calibrate".format(bucket, window))
+    new_budget = int(used / (actual_pct / 100.0))
     key = "budget_" + window
     old = cfg["buckets"][bucket].get(key)
-    cfg["buckets"][bucket][key] = int(used)
+    cfg["buckets"][bucket][key] = new_budget
     # Keep the other window proportionate if it was never calibrated.
     if window == "5h" and not cfg["buckets"][bucket].get("calibrated_7d"):
-        cfg["buckets"][bucket]["budget_7d"] = int(used * 10)
+        cfg["buckets"][bucket]["budget_7d"] = new_budget * 10
     cfg["buckets"][bucket]["calibrated_" + window] = time.strftime("%Y-%m-%d %H:%M")
     save_json(CONFIG_PATH, cfg)
-    print("{} {}: {} -> {}".format(bucket, key, fmt_tok(old or 0), fmt_tok(used)))
+    print("{} {}: {} -> {} (logged {} = {:.0f}% real)".format(
+        bucket, key, fmt_tok(old or 0), fmt_tok(new_budget), fmt_tok(used), actual_pct))
 
 
 def cmd_set(args):
